@@ -6,3 +6,4 @@ vim.keymap.set("n", "<leader>sc", ":%g/^\\s*#/d<CR>", { desc = "Remove Python co
 -- vim.keymap.set("n", "<leader>sc", ":%s/#.*//g<CR>", { desc = "Strip Python comments" })
 
 -- Remove Copilot chat default keymaps
+vim.keymap.set("i", "jk", "<Esc>", { desc = "Exit insert mode with jk" })
