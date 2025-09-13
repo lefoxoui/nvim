@@ -1,7 +1,3 @@
--- since this is just an example spec, don't actually load anything here and return an empty spec
--- stylua: ignore
-if true then return {} end
-
 -- every spec file under the "plugins" directory will be loaded automatically by lazy.nvim
 --
 -- In your plugin files, you can:
@@ -9,6 +5,15 @@ if true then return {} end
 -- * disable/enabled LazyVim plugins
 -- * override the configuration of LazyVim plugins
 return {
+  -- FIRST: Core LazyVim plugins (required to be first)
+  { import = "lazyvim.plugins" },
+
+  -- SECOND: LazyVim extras
+  { import = "lazyvim.plugins.extras.lang.json" },
+  -- Disable mini.starter to fix the error - use alpha instead
+  -- { import = "lazyvim.plugins.extras.ui.mini-starter" },
+
+  -- THIRD: Your custom plugins
   -- add gruvbox
   { "ellisonleao/gruvbox.nvim" },
 
@@ -37,6 +42,15 @@ return {
     ---@param opts cmp.ConfigSchema
     opts = function(_, opts)
       table.insert(opts.sources, { name = "emoji" })
+
+      -- Optimize completion sources for better performance
+      opts.performance = {
+        debounce = 100,
+        throttle = 50,
+        fetching_timeout = 200,
+      }
+
+      return opts
     end,
   },
 
@@ -70,50 +84,23 @@ return {
     opts = {
       ---@type lspconfig.options
       servers = {
-        -- pyright will be automatically installed with mason and loaded with lspconfig
-        pyright = {},
+        tsserver = {
+          settings = {
+            typescript = {
+              format = {
+                quotestyle = "single",
+              },
+            },
+            javascript = {
+              format = {
+                quotestyle = "single",
+              },
+            },
+          },
+        },
       },
     },
   },
-
-  -- add tsserver and setup with typescript.nvim instead of lspconfig
-  {
-    "neovim/nvim-lspconfig",
-    dependencies = {
-      "jose-elias-alvarez/typescript.nvim",
-      init = function()
-        require("lazyvim.util").lsp.on_attach(function(_, buffer)
-          -- stylua: ignore
-          vim.keymap.set( "n", "<leader>co", "TypescriptOrganizeImports", { buffer = buffer, desc = "Organize Imports" })
-          vim.keymap.set("n", "<leader>cR", "TypescriptRenameFile", { desc = "Rename File", buffer = buffer })
-        end)
-      end,
-    },
-    ---@class PluginLspOpts
-    opts = {
-      ---@type lspconfig.options
-      servers = {
-        -- tsserver will be automatically installed with mason and loaded with lspconfig
-        tsserver = {},
-      },
-      -- you can do any additional lsp server setup here
-      -- return true if you don't want this server to be setup with lspconfig
-      ---@type table<string, fun(server:string, opts:_.lspconfig.options):boolean?>
-      setup = {
-        -- example to setup with typescript.nvim
-        tsserver = function(_, opts)
-          require("typescript").setup({ server = opts })
-          return true
-        end,
-        -- Specify * to use this function as a fallback for any server
-        -- ["*"] = function(server, opts) end,
-      },
-    },
-  },
-
-  -- for typescript, LazyVim also includes extra specs to properly setup lspconfig,
-  -- treesitter, mason and typescript.nvim. So instead of the above, you can use:
-  { import = "lazyvim.plugins.extras.lang.typescript" },
 
   -- add more treesitter parsers
   {
@@ -176,12 +163,6 @@ return {
     end,
   },
 
-  -- use mini.starter instead of alpha
-  { import = "lazyvim.plugins.extras.ui.mini-starter" },
-
-  -- add jsonls and schemastore packages, and setup treesitter for json, json5 and jsonc
-  { import = "lazyvim.plugins.extras.lang.json" },
-
   -- add any tools you want to have installed below
   {
     "williamboman/mason.nvim",
@@ -195,17 +176,111 @@ return {
     },
   },
 
-  -- Avante
+  -- Copilot configuration (needed for Avante)
+  {
+    "zbirenbaum/copilot.lua",
+    cmd = "Copilot",
+    event = "InsertEnter",
+    config = function()
+      require("copilot").setup({
+        suggestion = { enabled = false },
+        panel = { enabled = false },
+      })
+    end,
+  },
+
+  -- Avante (with updated configuration)
   {
     "yetone/avante.nvim",
     event = "VeryLazy",
-    lazy = false,
     version = false,
+    -- REQUIRED: builds the native libs (templates, tokenizers, etc.)
+    build = (vim.fn.has("win32") ~= 0) and "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false"
+      or "make",
     opts = {
       provider = "copilot",
       auto_suggestions_provider = "copilot",
-      copilot = {
-        model = "claude-4.0-sonnet",
+      providers = {
+        copilot = {
+          model = "claude-sonnet-4",
+        },
+      },
+    },
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "MunifTanjim/nui.nvim",
+      "echasnovski/mini.pick",
+      "nvim-telescope/telescope.nvim",
+      "hrsh7th/nvim-cmp",
+      "ibhagwan/fzf-lua",
+      "stevearc/dressing.nvim",
+      "folke/snacks.nvim",
+      "nvim-tree/nvim-web-devicons",
+      {
+        "MeanderingProgrammer/render-markdown.nvim",
+        opts = { file_types = { "markdown", "Avante" } },
+        ft = { "markdown", "Avante" },
+      },
+    },
+  },
+
+  -- obsidian
+  {
+    "obsidian-nvim/obsidian.nvim",
+    version = "*", -- recommended, use latest release instead of latest commit
+    ft = "markdown",
+    ---@module 'obsidian'
+    ---@type obsidian.config
+    opts = {
+      workspaces = {
+        {
+          name = "personal",
+          path = "~/Downloads/LeKnowledge",
+        },
+      },
+      daily_notes = {
+        -- Optional, if you keep daily notes in a separate directory.
+        folder = "Daily",
+        -- Optional, if you want to change the date format for the ID of daily notes.
+        date_format = "%Y%m%d",
+        -- Optional, default tags to add to each new daily note created.
+        default_tags = { "Daily" },
+        -- Optional, if you want to automatically insert a template from your template directory like 'daily.md'
+        template = "templates/Daily.md",
+      },
+      templates = {
+        folder = "templates",
+        substitutions = {},
+        customizations = {},
+      },
+    },
+  },
+
+  -- wakatime
+  {
+    "wakatime/vim-wakatime",
+    event = "VeryLazy",
+  },
+
+  -- marksman
+  {
+    "artempyanykh/marksman",
+  },
+
+  -- live-server
+  {
+    "barrett-ruth/live-server.nvim",
+    build = "pnpm add -g live-server",
+    cmd = { "LiveServerStart", "LiveServerStop" },
+    config = true,
+  },
+  {
+    "stevearc/conform.nvim",
+    opts = {
+      formatters = {
+        prettier = {
+          prepend_args = { "--single-quote" },
+        },
       },
     },
   },
